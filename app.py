@@ -83,4 +83,4 @@ with st.sidebar:
     std = st.number_input("عدد الطالبات", value=25, min_value=1)
     
     label, color, _ = get_risk_level(save)
-    st.markdown(f'<div style="background:{color}; color:white; padding:10px; border-radius:8px; text-align:center; padding:16px;">{text}</div>', unsafe_allow_html=True)
+   st.markdown(f'<div style="background:{color}; color:white; padding:10px; border-radius:8px; text-align:center; padding:16px;">{label} - {save} لتر</div>', unsafe_allow_html=True)
