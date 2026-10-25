@@ -118,7 +118,7 @@ if not df.empty:
     st.markdown(f"""
     <div style='border:3px solid #0A6E2F; padding:20px; text-align:center; border-radius:15px; background:#f0fff4;'>
     <h2>شهادة شكر وتقدير</h2>
-    <p>تتقدم الابتدائية العاشرة بينبع البحر بشهادة شكر وتقدير للصف</p>
+   <p>تتقدم إدارة المدرسة بالشكر والتقدير للصف</p>
     <h3>{last_class}</h3>
     <p>على تميزه في ترشيد نعمة الماء وتوفير <b>{total} لتر</b> من المياه</p>
     <p>#بترشيدنا_تدوم_نعمتنا - رؤية 2030</p>
