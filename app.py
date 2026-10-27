@@ -14,7 +14,7 @@ bp = BASE / "banner_final.jpg"
 if bp.exists():
     st.image(str(bp), use_container_width=True)
 
-st.markdown("<div style='background:#0A6E2F; color:white; padding:12px; text-align:center; border-radius:10px;'><b>رؤية 2030 - #بترشيدنا_تدوم_نعمتنا</b><br>الابتدائية العاشرة بينبع البحر - مبادرة الطالبة حفصة وائل</div>", unsafe_allow_html=True)
+st.markdown("<div style='background:#0A6E2F; color:white; padding:12px; text-align:center; border-radius:10px;'><b>رؤية 2030 - #بترشيدنا_تدوم_نعمتنا</b><br> مبادرة الطالبة حفصة وائل</div>", unsafe_allow_html=True)
 
 activities = {
     "close_taps": "إغلاق الصنابير بعد الاستخدام",
