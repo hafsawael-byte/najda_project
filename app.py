@@ -3,11 +3,12 @@ import pandas as pd
 from datetime import datetime
 import pathlib
 
-SHEET_ID = "16BppQGDtoAKSelaxaZfhVgdpR7Q4cDj23ep3YO9bXU" 
+# يقرا الـ ID من Secrets لو موجود، لو لا ياخد القديم
+SHEET_ID = st.secrets.get("SHEET_ID", "16BppQGDtoAKSelaxaZfhVgdpR7Q4cDj23ep3YO9bXU")
 SHEET_CSV_URL = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/gviz/tq?tqx=out:csv&sheet=Sheet1"
 
 BASE = pathlib.Path(__file__).parent
-BACKUP_FILE = BASE / "backup_data.csv" # <- الإضافة الوحيدة هنا
+BACKUP_FILE = BASE / "backup_data.csv"
 st.set_page_config(page_title="Najda - مبادرة الطالبة حفصة وائل", layout="wide")
 
 bp = BASE / "banner_final.jpg"
@@ -34,10 +35,9 @@ def load_from_gsheet():
         if df.empty or "cls" not in df.columns:
             raise ValueError("الشيت فاضي او الأعمدة غلط")
         df["dt"] = pd.to_datetime(df["dt"], errors='coerce').dt.date
-        df.to_csv(BACKUP_FILE, index=False) # حفظ نسخة احتياطية
+        df.to_csv(BACKUP_FILE, index=False)
         return df
     except Exception as e:
-        # لو فشل جوجل شيت، حاول يرجع النسخة المحلية
         if BACKUP_FILE.exists():
             try:
                 df = pd.read_csv(BACKUP_FILE)
@@ -58,7 +58,7 @@ def save_to_gsheet(new_row):
         sheet.append_row([new_row["cls"], new_row["save"], str(new_row["dt"]), new_row["std"], new_row["activity"]])
         return True, "ok"
     except Exception as e:
-        return False, str(e) # <- هنا كنا نرجع False فقط، الآن نرجع السبب
+        return False, str(e)
 
 def get_risk_level(s):
     if s >= 150: return "آمن", "#2ECC71", "green"
@@ -83,7 +83,6 @@ with st.sidebar:
         if st.button("💾 حفظ النشاط", use_container_width=True, type="primary"):
             new_row = {"cls": cls_en, "save": save, "dt": datetime.now().date(), "std": std, "activity": act_en}
             ok, msg = save_to_gsheet(new_row)
-            # نحفظ محليا دائما عشان ما ينحذف
             st.session_state.data = pd.concat([st.session_state.data, pd.DataFrame([new_row])], ignore_index=True)
             st.session_state.data.to_csv(BACKUP_FILE, index=False)
             if ok:
@@ -106,7 +105,6 @@ if not df.empty:
     m1.metric("إجمالي التوفير", f"{total} لتر")
     m2.metric("المتوسط", f"{int(avg)} لتر")
     m3.metric("الأنشطة", f"{len(df)}")
-
     st.subheader("📊 الجداول")
     t1, t2 = st.tabs(["حسب الفصل", "حسب النشاط"])
     with t1:
@@ -118,7 +116,6 @@ if not df.empty:
         by_act["النشاط"] = by_act["activity"].map(activities)
         st.bar_chart(by_act, x="النشاط", y="save")
     st.dataframe(df, use_container_width=True)
-
     st.subheader("🤖 الذكاء الاصطناعي")
     best_c = df.groupby("cls")["save"].sum().idxmax()
     best_a = df.groupby("activity")["save"].sum().idxmax()
@@ -126,7 +123,6 @@ if not df.empty:
     ai1.info(f"**التوفير القادم المتوقع:**\n\n{int(avg*1.15)} لتر")
     ai2.success(f"**أفضل فصل:**\n\n{class_map.get(best_c,best_c)}")
     ai3.warning(f"**أكثر نشاط مؤثر:**\n\n{activities.get(best_a,best_a)}")
-
     st.subheader("🏆 الشهادة")
     last_class = class_map.get(df.iloc[-1]["cls"], df.iloc[-1]["cls"])
     st.markdown(f"""
