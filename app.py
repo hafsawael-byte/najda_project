@@ -3,7 +3,7 @@ import pandas as pd
 from datetime import datetime
 import pathlib
 
-SHEET_ID = st.secrets.get("SHEET_ID", "16BppQGDtoAKSelaxaZfhVgdpR7Q4cDj23ep3YO9bXU")
+SHEET_ID = st.secrets.get("SHEET_ID", "16BppQGDtoAK5eIaxaZfhJVgdpR7Q4cDj23ep3YO9bXU")
 SHEET_CSV_URL = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/gviz/tq?tqx=out:csv&sheet=Sheet1"
 
 BASE = pathlib.Path(__file__).parent
@@ -30,6 +30,34 @@ class_map = {"Grade1":"اول ابتدائي","Grade2":"ثاني ابتدائي"
 
 def load_from_gsheet():
     try:
+        # نحاول نقرأ كل الشيتات الشهرية من جوجل شيت
+        import gspread
+        from google.oauth2.service_account import Credentials
+        creds_dict = dict(st.secrets["gcp_service_account"])
+        creds_dict["private_key"] = creds_dict["private_key"].replace("\\n", "\n")
+        creds = Credentials.from_service_account_info(creds_dict, scopes=["https://www.googleapis.com/auth/spreadsheets","https://www.googleapis.com/auth/drive"])
+        client = gspread.authorize(creds)
+        spreadsheet = client.open_by_key(SHEET_ID)
+        
+        all_dfs = []
+        for ws in spreadsheet.worksheets():
+            # ناخد بس اللي اسمها زي 2026-10 او Sheet1 القديم
+            try:
+                records = ws.get_all_records()
+                if records:
+                    df_temp = pd.DataFrame(records)
+                    if "cls" in df_temp.columns:
+                        all_dfs.append(df_temp)
+            except:
+                continue
+        
+        if all_dfs:
+            df = pd.concat(all_dfs, ignore_index=True)
+            df["dt"] = pd.to_datetime(df["dt"], errors='coerce').dt.date
+            df.to_csv(BACKUP_FILE, index=False)
+            return df
+        
+        # لو مفيش شيتات شهرية، جرب الطريقة القديمة
         df = pd.read_csv(SHEET_CSV_URL)
         if df.empty or "cls" not in df.columns:
             raise ValueError("الشيت فاضي او الأعمدة غلط")
@@ -51,15 +79,24 @@ def save_to_gsheet(new_row):
         import gspread
         from google.oauth2.service_account import Credentials
         creds_dict = dict(st.secrets["gcp_service_account"])
-        # ده السطر المهم اللي بيصلح الـ PEM
-        creds_dict["private_key"] = creds_dict["private_key"].replace("\\n", "\n").replace("\n", "\n")
+        creds_dict["private_key"] = creds_dict["private_key"].replace("\\n", "\n")
         creds = Credentials.from_service_account_info(creds_dict, scopes=["https://www.googleapis.com/auth/spreadsheets","https://www.googleapis.com/auth/drive"])
         client = gspread.authorize(creds)
-        sheet = client.open_by_key(SHEET_ID).sheet1
+        spreadsheet = client.open_by_key(SHEET_ID)
+        
+        # === ده التعديل الوحيد: كل شهر لوحده ===
+        month_name = datetime.now().strftime("%Y-%m")  # مثلا 2026-10
+        try:
+            sheet = spreadsheet.worksheet(month_name)
+        except:
+            sheet = spreadsheet.add_worksheet(title=month_name, rows=1000, cols=10)
+            sheet.append_row(["cls","save","dt","std","activity"])
+        
         sheet.append_row([new_row["cls"], new_row["save"], str(new_row["dt"]), new_row["std"], new_row["activity"]])
         return True, "ok"
     except Exception as e:
         return False, str(e)
+
 def get_risk_level(s):
     if s >= 150: return "آمن", "#2ECC71", "green"
     elif s >= 70: return "متوسط", "#F39C12", "yellow"
@@ -102,7 +139,6 @@ with st.sidebar:
                 BACKUP_FILE.unlink()
             st.warning("تم التصفير")
 
-    # هنا هتظهر الرسالة بشكل ثابت ومش هتختفي
     if st.session_state.last_error:
         st.error("سبب فشل الشيت:")
         st.code(st.session_state.last_error)
