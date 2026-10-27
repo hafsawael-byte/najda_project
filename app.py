@@ -3,7 +3,6 @@ import pandas as pd
 from datetime import datetime
 import pathlib
 
-# يقرا الـ ID من Secrets لو موجود، لو لا ياخد القديم
 SHEET_ID = st.secrets.get("SHEET_ID", "16BppQGDtoAKSelaxaZfhVgdpR7Q4cDj23ep3YO9bXU")
 SHEET_CSV_URL = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/gviz/tq?tqx=out:csv&sheet=Sheet1"
 
@@ -68,6 +67,9 @@ def get_risk_level(s):
 if 'data' not in st.session_state:
     st.session_state.data = load_from_gsheet()
 
+if 'last_error' not in st.session_state:
+    st.session_state.last_error = ""
+
 with st.sidebar:
     st.header("تسجيل نشاط حقيقي")
     cls_en = st.selectbox("الفصل", list(class_map.keys()), format_func=lambda x: class_map[x])
@@ -86,16 +88,23 @@ with st.sidebar:
             st.session_state.data = pd.concat([st.session_state.data, pd.DataFrame([new_row])], ignore_index=True)
             st.session_state.data.to_csv(BACKUP_FILE, index=False)
             if ok:
+                st.session_state.last_error = ""
                 st.success("تم الحفظ في جوجل شيت!")
             else:
-                st.error(f"انحفظ محلياً فقط - سبب فشل الشيت: {msg}")
+                st.session_state.last_error = msg
             st.rerun()
     with col2:
         if st.button("🗑️ تصفير النشاط", use_container_width=True):
             st.session_state.data = pd.DataFrame(columns=["cls","save","dt","std","activity"])
+            st.session_state.last_error = ""
             if BACKUP_FILE.exists():
                 BACKUP_FILE.unlink()
             st.warning("تم التصفير")
+
+    # هنا هتظهر الرسالة بشكل ثابت ومش هتختفي
+    if st.session_state.last_error:
+        st.error("سبب فشل الشيت:")
+        st.code(st.session_state.last_error)
 
 df = st.session_state.data
 if not df.empty:
@@ -105,6 +114,7 @@ if not df.empty:
     m1.metric("إجمالي التوفير", f"{total} لتر")
     m2.metric("المتوسط", f"{int(avg)} لتر")
     m3.metric("الأنشطة", f"{len(df)}")
+
     st.subheader("📊 الجداول")
     t1, t2 = st.tabs(["حسب الفصل", "حسب النشاط"])
     with t1:
@@ -116,6 +126,7 @@ if not df.empty:
         by_act["النشاط"] = by_act["activity"].map(activities)
         st.bar_chart(by_act, x="النشاط", y="save")
     st.dataframe(df, use_container_width=True)
+
     st.subheader("🤖 الذكاء الاصطناعي")
     best_c = df.groupby("cls")["save"].sum().idxmax()
     best_a = df.groupby("activity")["save"].sum().idxmax()
@@ -123,6 +134,7 @@ if not df.empty:
     ai1.info(f"**التوفير القادم المتوقع:**\n\n{int(avg*1.15)} لتر")
     ai2.success(f"**أفضل فصل:**\n\n{class_map.get(best_c,best_c)}")
     ai3.warning(f"**أكثر نشاط مؤثر:**\n\n{activities.get(best_a,best_a)}")
+
     st.subheader("🏆 الشهادة")
     last_class = class_map.get(df.iloc[-1]["cls"], df.iloc[-1]["cls"])
     st.markdown(f"""
