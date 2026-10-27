@@ -7,6 +7,7 @@ SHEET_ID = "16BppQGDtoAKSelaxaZfhVgdpR7Q4cDj23ep3YO9bXU"
 SHEET_CSV_URL = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/gviz/tq?tqx=out:csv&sheet=Sheet1"
 
 BASE = pathlib.Path(__file__).parent
+BACKUP_FILE = BASE / "backup_data.csv" # <- الإضافة الوحيدة هنا
 st.set_page_config(page_title="Najda - مبادرة الطالبة حفصة وائل", layout="wide")
 
 bp = BASE / "banner_final.jpg"
@@ -31,10 +32,19 @@ def load_from_gsheet():
     try:
         df = pd.read_csv(SHEET_CSV_URL)
         if df.empty or "cls" not in df.columns:
-            return pd.DataFrame(columns=["cls","save","dt","std","activity"])
+            raise ValueError("الشيت فاضي او الأعمدة غلط")
         df["dt"] = pd.to_datetime(df["dt"], errors='coerce').dt.date
+        df.to_csv(BACKUP_FILE, index=False) # حفظ نسخة احتياطية
         return df
-    except:
+    except Exception as e:
+        # لو فشل جوجل شيت، حاول يرجع النسخة المحلية
+        if BACKUP_FILE.exists():
+            try:
+                df = pd.read_csv(BACKUP_FILE)
+                df["dt"] = pd.to_datetime(df["dt"], errors='coerce').dt.date
+                return df
+            except:
+                pass
         return pd.DataFrame(columns=["cls","save","dt","std","activity"])
 
 def save_to_gsheet(new_row):
@@ -46,9 +56,9 @@ def save_to_gsheet(new_row):
         client = gspread.authorize(creds)
         sheet = client.open_by_key(SHEET_ID).sheet1
         sheet.append_row([new_row["cls"], new_row["save"], str(new_row["dt"]), new_row["std"], new_row["activity"]])
-        return True
+        return True, "ok"
     except Exception as e:
-        return False
+        return False, str(e) # <- هنا كنا نرجع False فقط، الآن نرجع السبب
 
 def get_risk_level(s):
     if s >= 150: return "آمن", "#2ECC71", "green"
@@ -72,16 +82,20 @@ with st.sidebar:
     with col1:
         if st.button("💾 حفظ النشاط", use_container_width=True, type="primary"):
             new_row = {"cls": cls_en, "save": save, "dt": datetime.now().date(), "std": std, "activity": act_en}
-            ok = save_to_gsheet(new_row)
+            ok, msg = save_to_gsheet(new_row)
+            # نحفظ محليا دائما عشان ما ينحذف
             st.session_state.data = pd.concat([st.session_state.data, pd.DataFrame([new_row])], ignore_index=True)
+            st.session_state.data.to_csv(BACKUP_FILE, index=False)
             if ok:
                 st.success("تم الحفظ في جوجل شيت!")
             else:
-                st.success("تم الحفظ محليا")
+                st.error(f"انحفظ محلياً فقط - سبب فشل الشيت: {msg}")
             st.rerun()
     with col2:
         if st.button("🗑️ تصفير النشاط", use_container_width=True):
             st.session_state.data = pd.DataFrame(columns=["cls","save","dt","std","activity"])
+            if BACKUP_FILE.exists():
+                BACKUP_FILE.unlink()
             st.warning("تم التصفير")
 
 df = st.session_state.data
