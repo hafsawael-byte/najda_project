@@ -50,7 +50,9 @@ def save_to_gsheet(new_row):
     try:
         import gspread
         from google.oauth2.service_account import Credentials
-        creds_dict = st.secrets["gcp_service_account"]
+        creds_dict = dict(st.secrets["gcp_service_account"])
+        # ده السطر المهم اللي بيصلح الـ PEM
+        creds_dict["private_key"] = creds_dict["private_key"].replace("\\n", "\n").replace("\n", "\n")
         creds = Credentials.from_service_account_info(creds_dict, scopes=["https://www.googleapis.com/auth/spreadsheets","https://www.googleapis.com/auth/drive"])
         client = gspread.authorize(creds)
         sheet = client.open_by_key(SHEET_ID).sheet1
@@ -58,7 +60,6 @@ def save_to_gsheet(new_row):
         return True, "ok"
     except Exception as e:
         return False, str(e)
-
 def get_risk_level(s):
     if s >= 150: return "آمن", "#2ECC71", "green"
     elif s >= 70: return "متوسط", "#F39C12", "yellow"
